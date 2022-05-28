@@ -1,9 +1,11 @@
+import time
+
 import numpy as np
 from heapq import heappop, heappush
 import gym
 from pogema.animation import AnimationMonitor
 from pogema import GridConfig
-from random import randint, shuffle
+from random import randint, shuffle, sample
 
 
 class Node:
@@ -31,7 +33,7 @@ class AStar:
         self.isbuild = False
         self.path = []
 
-    def compute_shortest_path(self, start, goal):
+    def compute_shortest_path(self, start, goal, n=5):
         if self.isbuild:
             return
         self.start = start
@@ -41,7 +43,8 @@ class AStar:
         heappush(self.OPEN, Node(self.start))
         u = Node()
         steps = 0
-        while self.OPEN and steps < self.max_steps and (u.i, u.j) != self.goal:
+        max_steps = min(max(self.max_steps - 12*n, 20),self.max_steps)
+        while self.OPEN and steps < max_steps and (u.i, u.j) != self.goal:
             u = heappop(self.OPEN)
             steps += 1
             for d in {(-1, 0), (1, 0), (0, -1), (0, 1)}:
@@ -63,8 +66,7 @@ class AStar:
         if self.goal in self.CLOSED:  # if path found
             next_node = self.goal
             self.path.append(next_node)
-            while self.CLOSED[
-                next_node] != self.start:  # get node in the path with start node as a predecessor
+            while self.CLOSED[next_node] != self.start:
                 next_node = self.CLOSED[next_node]
                 self.path.append(next_node)
             self.isbuild = True
@@ -85,10 +87,15 @@ class AStar:
                 self.other_agents.add((n[0] + agent[0], n[1] + agent[1]))
             # save them with correct coordinates
 
+
 mxs = set()
 
+
 class Model:
+    MAXSIZE = 10
+
     def __init__(self):
+        self.starttime = time.time()
         self.postmove = []
         self.positions = []
         self.kx = [0, -1, 1, 0, 0]
@@ -97,6 +104,8 @@ class Model:
         self.failpair = {(1, 2), (2, 1), (3, 4), (4, 3)}
         self.agents = None
         self.key = False
+        self.indexs = list()
+        self.lst = list()
         self.lengthobs = 0
         self.actions = {tuple(GridConfig().MOVES[i]): i for i in
                         range(
@@ -104,28 +113,28 @@ class Model:
 
     def act(self, obs, dones, positions_xy, targets_xy) -> list:
         if self.agents is None:
-            self.lengthobs = len(obs)
+            self.lengthobs = len(dones)
             self.agents = [AStar() for _ in range(self.lengthobs)]
             self.postmove = [([0 for _ in range(self.lengthobs)]) for w in range(2)]
             self.positions = [([(-1, -1) for _ in range(self.lengthobs)]) for w in range(2)]
-        if False and (positions_xy == self.positions[self.key & 1] or positions_xy == self.positions[
-            (self.key + 1) & 1]):
-            return [0] * self.lengthobs
-        actions = []
-        vec = set()
+            self.lst = [0] * self.lengthobs
 
-        for k in range(self.lengthobs):
+        actions = self.lst
+        vec = set()
+        lst = list(range(self.lengthobs))
+        shuffle(lst)
+        for k in lst:
             if dones[k]:  # positions_xy[k] == targets_xy[k]:
                 self.postmove[self.key & 1][k] = 0
-                actions.append(0)
+                actions[k] = 0
                 continue
             self.agents[k].update_obstacles(obs[k][0], obs[k][1],
                                             (positions_xy[k][0] - 5, positions_xy[k][1] - 5))
-            self.agents[k].compute_shortest_path(start=positions_xy[k], goal=targets_xy[k])
+            self.agents[k].compute_shortest_path(start=positions_xy[k], goal=targets_xy[k],n=self.lengthobs)
 
             next_node = self.agents[k].get_next_node()
-            actions.append(self.actions.get((next_node[0] - positions_xy[k][0],
-                                             next_node[1] - positions_xy[k][1]), 0))
+            actions[k] = self.actions.get((next_node[0] - positions_xy[k][0],
+                                           next_node[1] - positions_xy[k][1]), 0)
 
             indx = actions[k]
 
@@ -145,33 +154,29 @@ class Model:
                     next_node = self.agents[k].get_next_node()
                     actions[k] = self.actions.get((next_node[0] - positions_xy[k][0],
                                                    next_node[1] - positions_xy[k][1]), 0)
-                for _ in range(randint(0, 4)):
-                    shuffle(self.kxy)
+
+                shuffle(self.kxy)
                 if not actions[k]:
                     for kx, ky in self.kxy:
                         i, j = positions_xy[k][0] + kx, positions_xy[k][1] + ky
-                        try:
+                        if 0 <= i <= self.MAXSIZE and 0 <= j <= self.MAXSIZE:
                             if not (obs[k][0][i][j] or obs[k][1][i][j]):
                                 if kx == ky:
                                     continue
                                 indx = self.actions[(kx, ky)]
                                 break
-                        except IndexError:
-                            pass
-            # print("stalo", self.postmove[self.key & 1][k], actions[k], indx)
             actions[k] = self.postmove[self.key & 1][k] = indx
-
-            # print(k, self.postmove)
 
             vec.add(positions_xy[k])
         self.positions[self.key & 1] = positions_xy
         self.key = not self.key
+
         return actions
 
 
 def main():
     # Define random configuration
-    grid_config = GridConfig(num_agents=100,  # количество агентов на карте
+    grid_config = GridConfig(num_agents=400,  # количество агентов на карте
                              size=64,  # размеры карты
                              density=0.3,  # плотность препятствий
                              seed=1,  # сид генерации задания
@@ -201,6 +206,7 @@ def main():
     # сохраняем анимацию и рисуем ее
     env.save_animation("render.svg", egocentric_idx=None)
     # print(max(mxs))
+
 
 if __name__ == '__main__':
     main()
