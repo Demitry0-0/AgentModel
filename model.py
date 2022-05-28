@@ -81,8 +81,8 @@ class Model:
         self.ky = [0, 0, 0, -1, 1]
         self.kxy = [(self.kx[i], self.ky[i]) for i in range(len(self.kx))]
         self.agents = None
-        self.failpair = [(1, 2), (2, 1), (3, 4), (4, 3)]
         self.key = False
+        self.positions = []
         self.lengthobs = 0
         self.actions = {tuple(GridConfig().MOVES[i]): i for i in
                         range(
@@ -93,10 +93,8 @@ class Model:
             self.lengthobs = len(obs)
             self.agents = [AStar() for _ in range(self.lengthobs)]
             self.postmove = [([0 for _ in range(self.lengthobs)]) for w in range(2)]
-        else:
-            if not (any(self.postmove[0]) or any(self.postmove[1])):
-                # print("EXIT)
-                return [0] * self.lengthobs
+        if positions_xy == self.positions:
+            return [0] * self.lengthobs
         actions = []
         vec = set()
         for k in range(self.lengthobs):
@@ -110,31 +108,27 @@ class Model:
             next_node = self.agents[k].get_next_node()
             actions.append(
                 self.actions[(next_node[0] - positions_xy[k][0], next_node[1] - positions_xy[k][1])])
-            if self.postmove[(self.key + 1) & 1][k] == actions[k] and actions[k]:
-                pass
-            elif actions[k] == self.postmove[self.key & 1][k] and \
-                    (actions[k], self.postmove[(self.key + 1) & 1][k]) not in self.failpair:
+
+            if set([(positions_xy[k][0] + self.kx[i], positions_xy[k][1] + self.ky[i]) for i in
+                    range(1, 5)]) & vec:
+                actions[k] = 0
+                self.postmove[self.key & 1][k] = 0
+            else:
                 indx = actions[k]
                 for _ in range(randint(0, 4)):
                     shuffle(self.kxy)
                 for kx, ky in self.kxy:
                     i, j = positions_xy[k][0] + kx, positions_xy[k][1] + ky
                     try:
-                        if not (obs[k][0][i][j] or obs[k][1][i][j]) \
-                                and indx != actions[k] and indx != self.postmove[self.key & 1][k]:
+                        if not (obs[k][0][i][j] or obs[k][1][i][j]) and indx != actions[k]:
                             if kx == ky:
                                 continue
                             indx = self.actions[(kx, ky)]
                             break
                     except IndexError:
                         pass
-                # print("stalo", self.postmove[self.key & 1][k], actions[k], indx)
-                actions[k] = self.postmove[self.key & 1][k] = indx
-            elif set([(positions_xy[k][0] + self.kx[i], positions_xy[k][1] + self.ky[i]) for i in
-                      range(1, 5)]) & vec:
-                actions[k] = 0
-                self.postmove[self.key & 1][k] = 0
-            vec.add(positions_xy[k])
+            # print("stalo", self.postmove[self.key & 1][k], actions[k], indx)
+            actions[k] = self.postmove[self.key & 1][k] = indx
 
             # print(k, self.postmove)
 
@@ -156,8 +150,9 @@ class Model:
             else:
                 self.postmove[self.key & 1][k] = actions[-1]
             """
+            vec.add(positions_xy[k])
         self.key = not self.key
-
+        self.positions = [val for val in positions_xy]
         return actions
 
 
