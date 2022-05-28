@@ -28,8 +28,12 @@ class AStar:
         self.CLOSED = dict()
         self.obstacles = set()
         self.other_agents = set()
+        self.isbuild = False
+        self.path = []
 
     def compute_shortest_path(self, start, goal):
+        if self.isbuild:
+            return
         self.start = start
         self.goal = goal
         self.CLOSED = dict()
@@ -40,7 +44,7 @@ class AStar:
         while self.OPEN and steps < self.max_steps and (u.i, u.j) != self.goal:
             u = heappop(self.OPEN)
             steps += 1
-            for d in [(-1, 0), (1, 0), (0, -1), (0, 1)]:
+            for d in {(-1, 0), (1, 0), (0, -1), (0, 1)}:
                 n = (u.i + d[0], u.j + d[1])
                 if n not in self.obstacles and n not in self.CLOSED and n not in self.other_agents:
                     h = abs(n[0] - self.goal[0]) + abs(
@@ -51,12 +55,19 @@ class AStar:
                         return
 
     def get_next_node(self):
+        if not self.path:
+            self.isbuild = False
+        if self.isbuild:
+            return self.path.pop()
         next_node = self.start  # if path not found, current start position is returned
         if self.goal in self.CLOSED:  # if path found
             next_node = self.goal
+            self.path.append(next_node)
             while self.CLOSED[
                 next_node] != self.start:  # get node in the path with start node as a predecessor
                 next_node = self.CLOSED[next_node]
+                self.path.append(next_node)
+            self.isbuild = True
         return next_node
 
     def update_obstacles(self, obs, other_agents, n):
@@ -69,10 +80,12 @@ class AStar:
         agents = np.transpose(np.nonzero(other_agents))
         # get the coordinates of all agents that are seen
         for agent in agents:
-            if abs((n[0] - agent[0]) + abs(n[1] - agent[1])) < 23:
+            # mxs.add(abs((n[0] - agent[0]) + abs(n[1] - agent[1])))
+            if abs((n[0] - agent[0]) + abs(n[1] - agent[1])) < randint(20, 150):
                 self.other_agents.add((n[0] + agent[0], n[1] + agent[1]))
             # save them with correct coordinates
 
+mxs = set()
 
 class Model:
     def __init__(self):
@@ -81,6 +94,7 @@ class Model:
         self.kx = [0, -1, 1, 0, 0]
         self.ky = [0, 0, 0, -1, 1]
         self.kxy = [(self.kx[i], self.ky[i]) for i in range(len(self.kx))]
+        self.failpair = {(1, 2), (2, 1), (3, 4), (4, 3)}
         self.agents = None
         self.key = False
         self.lengthobs = 0
@@ -94,8 +108,8 @@ class Model:
             self.agents = [AStar() for _ in range(self.lengthobs)]
             self.postmove = [([0 for _ in range(self.lengthobs)]) for w in range(2)]
             self.positions = [([(-1, -1) for _ in range(self.lengthobs)]) for w in range(2)]
-        if positions_xy == self.positions[self.key & 1] or positions_xy == self.positions[
-            (self.key + 1) & 1]:
+        if False and (positions_xy == self.positions[self.key & 1] or positions_xy == self.positions[
+            (self.key + 1) & 1]):
             return [0] * self.lengthobs
         actions = []
         vec = set()
@@ -108,28 +122,42 @@ class Model:
             self.agents[k].update_obstacles(obs[k][0], obs[k][1],
                                             (positions_xy[k][0] - 5, positions_xy[k][1] - 5))
             self.agents[k].compute_shortest_path(start=positions_xy[k], goal=targets_xy[k])
+
             next_node = self.agents[k].get_next_node()
-            actions.append(
-                self.actions[(next_node[0] - positions_xy[k][0], next_node[1] - positions_xy[k][1])])
+            actions.append(self.actions.get((next_node[0] - positions_xy[k][0],
+                                             next_node[1] - positions_xy[k][1]), 0))
+
+            indx = actions[k]
 
             if set([(positions_xy[k][0] + self.kx[i], positions_xy[k][1] + self.ky[i]) for i in
                     range(1, 5)]) & vec:
                 actions[k] = 0
                 self.postmove[self.key & 1][k] = 0
             else:
-                indx = actions[k]
+                if not actions[k] or self.postmove[self.key & 1][k] == actions[k] and \
+                        (actions[k], self.postmove[(self.key + 1) & 1][k]) not in self.failpair:
+                    self.agents[k].isbuild = False
+
+                    self.agents[k].update_obstacles(obs[k][0], obs[k][1],
+                                                    (positions_xy[k][0] - 5, positions_xy[k][1] - 5))
+                    self.agents[k].compute_shortest_path(start=positions_xy[k], goal=targets_xy[k])
+
+                    next_node = self.agents[k].get_next_node()
+                    actions[k] = self.actions.get((next_node[0] - positions_xy[k][0],
+                                                   next_node[1] - positions_xy[k][1]), 0)
                 for _ in range(randint(0, 4)):
                     shuffle(self.kxy)
-                for kx, ky in self.kxy:
-                    i, j = positions_xy[k][0] + kx, positions_xy[k][1] + ky
-                    try:
-                        if not (obs[k][0][i][j] or obs[k][1][i][j]) and indx != actions[k]:
-                            if kx == ky:
-                                continue
-                            indx = self.actions[(kx, ky)]
-                            break
-                    except IndexError:
-                        pass
+                if not actions[k]:
+                    for kx, ky in self.kxy:
+                        i, j = positions_xy[k][0] + kx, positions_xy[k][1] + ky
+                        try:
+                            if not (obs[k][0][i][j] or obs[k][1][i][j]):
+                                if kx == ky:
+                                    continue
+                                indx = self.actions[(kx, ky)]
+                                break
+                        except IndexError:
+                            pass
             # print("stalo", self.postmove[self.key & 1][k], actions[k], indx)
             actions[k] = self.postmove[self.key & 1][k] = indx
 
@@ -169,10 +197,10 @@ def main():
                                                       env.get_targets_xy_relative()))
         steps += 1
         # print(steps, np.sum(done))
-    print((time.time()-st)/60)
+    # print((time.time() - st))
     # сохраняем анимацию и рисуем ее
     env.save_animation("render.svg", egocentric_idx=None)
-
+    # print(max(mxs))
 
 if __name__ == '__main__':
     main()
