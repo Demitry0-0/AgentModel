@@ -59,15 +59,6 @@ class AStar:
                 next_node = self.CLOSED[next_node]
         return next_node
 
-    def get_next_next_node(self, node):
-        next_node = self.start  # if path not found, current start position is returned
-        if self.goal in self.CLOSED:  # if path found
-            next_node = self.goal
-            while self.CLOSED[
-                next_node] != node:  # get node in the path with start node as a predecessor
-                next_node = self.CLOSED[next_node]
-        return next_node
-
     def update_obstacles(self, obs, other_agents, n):
         obstacles = np.transpose(
             np.nonzero(obs))  # get the coordinates of all obstacles in current observation
@@ -87,7 +78,6 @@ class Model:
     def __init__(self):
         self.postmove = []
         self.positions = []
-        self.next_actions = []
         self.kx = [0, -1, 1, 0, 0]
         self.ky = [0, 0, 0, -1, 1]
         self.kxy = [(self.kx[i], self.ky[i]) for i in range(len(self.kx))]
@@ -104,7 +94,6 @@ class Model:
             self.agents = [AStar() for _ in range(self.lengthobs)]
             self.postmove = [([0 for _ in range(self.lengthobs)]) for w in range(2)]
             self.positions = [([(-1, -1) for _ in range(self.lengthobs)]) for w in range(2)]
-            self.next_actions = [(0,0) for _ in range(self.lengthobs)]
         if positions_xy == self.positions[self.key & 1] or positions_xy == self.positions[
             (self.key + 1) & 1]:
             return [0] * self.lengthobs
@@ -122,11 +111,10 @@ class Model:
             next_node = self.agents[k].get_next_node()
             actions.append(
                 self.actions[(next_node[0] - positions_xy[k][0], next_node[1] - positions_xy[k][1])])
-            self.next_actions[k] = self.agents[k].get_next_next_node(next_node)
+
             if set([(positions_xy[k][0] + self.kx[i], positions_xy[k][1] + self.ky[i]) for i in
                     range(1, 5)]) & vec:
                 actions[k] = 0
-                self.next_actions[k] = (0,0)
                 self.postmove[self.key & 1][k] = 0
             else:
                 indx = actions[k]
@@ -197,6 +185,7 @@ def main():
                                                       env.get_targets_xy_relative()))
         steps += 1
         # print(steps, np.sum(done))
+
     # сохраняем анимацию и рисуем ее
     env.save_animation("render.svg", egocentric_idx=None)
 
