@@ -135,24 +135,6 @@ class Model:
 
             # print(k, self.postmove)
 
-            """
-            if self.postmove[self.key & 1][k] == actions[-1]:
-                indx = randint(0, 4)
-                cnt = 100
-                i, j = positions_xy[k][0] + self.kx[indx], positions_xy[k][1] + self.ky[indx]
-                while cnt:
-                    cnt -= 1
-                    try:
-                        if obs[k][0][i][j]:
-                            break
-                    except IndexError:
-                        pass
-                    indx = randint(0, 4)
-                    i, j = positions_xy[k][0] + self.kx[indx], positions_xy[k][1] + self.ky[indx]
-                self.postmove[self.key & 1][k] = indx if cnt else actions[-1]
-            else:
-                self.postmove[self.key & 1][k] = actions[-1]
-            """
             vec.add(positions_xy[k])
         self.positions[self.key & 1] = positions_xy
         self.key = not self.key
@@ -178,6 +160,8 @@ def main():
     done = [False for k in range(len(obs))]
     solver = Model()
     steps = 0
+    import time
+    st = time.time()
     while not all(done):
         # Используем AStar
         obs, reward, done, info = env.step(solver.act(obs, done,
@@ -185,7 +169,7 @@ def main():
                                                       env.get_targets_xy_relative()))
         steps += 1
         # print(steps, np.sum(done))
-
+    print((time.time()-st)/60)
     # сохраняем анимацию и рисуем ее
     env.save_animation("render.svg", egocentric_idx=None)
 
