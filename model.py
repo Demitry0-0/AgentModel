@@ -137,7 +137,7 @@ class Model:
         actions = self.lst
         vec = set()
         lst = list(range(self.lengthobs))
-        # shuffle(lst)
+        shuffle(lst)
         for k in lst:
             if dones[k]:  # positions_xy[k] == targets_xy[k]:
                 self.postmove[self.key & 1][k] = 0
@@ -172,7 +172,7 @@ class Model:
                     indx = actions[k] = self.actions.get((next_node[0] - positions_xy[k][0],
                                                    next_node[1] - positions_xy[k][1]), 0)
 
-                # shuffle(self.kxy)
+                shuffle(self.kxy)
                 if not actions[k]:
                     for kx, ky in self.kxy:
                         i, j = positions_xy[k][0] + kx, positions_xy[k][1] + ky
