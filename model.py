@@ -26,7 +26,7 @@ class AStar:
     def __init__(self):
         self.start = (0, 0)
         self.goal = (0, 0)
-        self.max_steps = 10000  # due to the absence of information about the map size we need some other stop criterion
+        self.max_steps = 5000  # due to the absence of information about the map size we need some other stop criterion
         self.OPEN = list()
         self.CLOSED = dict()
         self.obstacles = set()
@@ -48,7 +48,7 @@ class AStar:
         while self.OPEN and steps < max_steps and (u.i, u.j) != self.goal:
             u = heappop(self.OPEN)
             steps += 1
-            for d in {(-1, 0), (1, 0), (0, -1), (0, 1)}:
+            for d in ((-1, 0), (0, 1), (1, 0), (0, -1)):
                 n = (u.i + d[0], u.j + d[1])
                 if n not in self.obstacles and n not in self.CLOSED and n not in self.other_agents:
                     h = abs(n[0] - self.goal[0]) + abs(
